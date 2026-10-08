@@ -29,6 +29,17 @@ def worker(impl, csv_path):
     print(json.dumps({**stats, "seconds": elapsed}))
 
 
+def process_memory(ps):
+    total = 0
+    for p in [ps] + ps.children(recursive=True):
+        try:
+            info = p.memory_info()
+            total += max(info.rss, getattr(info, "peak_wset", 0))
+        except psutil.Error:
+            pass
+    return total
+
+
 def measure(impl, csv_path):
     proc = subprocess.Popen(
         [sys.executable, str(Path(__file__).resolve()), "--worker", impl, str(csv_path)],
@@ -40,8 +51,7 @@ def measure(impl, csv_path):
     peak = 0
     while proc.poll() is None:
         try:
-            info = ps.memory_info()
-            peak = max(peak, info.rss, getattr(info, "peak_wset", 0))
+            peak = max(peak, process_memory(ps))
         except psutil.Error:
             break
         time.sleep(0.01)
