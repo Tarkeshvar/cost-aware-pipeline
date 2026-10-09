@@ -122,6 +122,110 @@ def test_ai_failure_falls_back_to_rule_based(tmp_path):
     assert "3.0x" in text
 
 
+class WrongProvider(SummaryProvider):
+    name = "wrong"
+
+    def summarize(self, stats):
+        return "pandas is better at everything."
+
+
+class GoodProvider(SummaryProvider):
+    name = "good"
+
+    def summarize(self, stats):
+        return "Choose DuckDB when compute time is the main cost, and choose pandas when memory is limited."
+
+
+class SwappedProvider(SummaryProvider):
+    name = "swapped"
+
+    def summarize(self, stats):
+        return "Choose DuckDB when memory is limited, and choose pandas when compute time is the main cost."
+
+
+class ComparisonProvider(SummaryProvider):
+    name = "comparison"
+
+    def summarize(self, stats):
+        return "Pandas is faster than DuckDB, so choose pandas when time matters and DuckDB when memory matters."
+
+
+class NumberWritingProvider(SummaryProvider):
+    name = "numbers"
+
+    def summarize(self, stats):
+        return "Choose DuckDB when time matters for 9.7 times the speed, and pandas when memory matters."
+
+
+def test_vague_ai_text_is_rejected(tmp_path):
+    text, source = get_summary(make_stats(tmp_path), WrongProvider())
+    assert "fallback" in source
+
+
+def test_correct_ai_text_is_accepted(tmp_path):
+    text, source = get_summary(make_stats(tmp_path), GoodProvider())
+    assert source == "good"
+    assert "3.0x" in text
+    assert "compute time is the main cost" in text
+
+
+def test_ai_text_with_swapped_advice_is_rejected(tmp_path):
+    text, source = get_summary(make_stats(tmp_path), SwappedProvider())
+    assert "fallback" in source
+
+
+def test_ai_text_with_comparison_words_is_rejected(tmp_path):
+    text, source = get_summary(make_stats(tmp_path), ComparisonProvider())
+    assert "fallback" in source
+
+
+def test_ai_text_with_numbers_is_rejected(tmp_path):
+    text, source = get_summary(make_stats(tmp_path), NumberWritingProvider())
+    assert "fallback" in source
+
+
+class FakeResponse:
+    def __init__(self, text):
+        self.text = text
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"response": self.text}
+
+
+def run_with_reply(tmp_path, monkeypatch, reply):
+    monkeypatch.setattr("ai_summary.requests.post", lambda *args, **kwargs: FakeResponse(reply))
+    return get_summary(make_stats(tmp_path), OllamaProvider(model="test"))
+
+
+def test_model_reply_in_two_lines_is_accepted(tmp_path, monkeypatch):
+    reply = "Choose DuckDB when compute time adds up\nChoose pandas when memory is limited"
+    text, source = run_with_reply(tmp_path, monkeypatch, reply)
+    assert source == "ollama:test"
+    assert "Choose DuckDB when compute time adds up, and choose pandas when memory is limited." in text
+
+
+def test_model_reply_in_one_line_is_accepted(tmp_path, monkeypatch):
+    reply = "Choose DuckDB when compute time is the main cost, and choose pandas when memory is limited."
+    text, source = run_with_reply(tmp_path, monkeypatch, reply)
+    assert source == "ollama:test"
+    assert text.count("Choose DuckDB when") == 1
+
+
+def test_model_reply_with_swapped_topics_is_rejected(tmp_path, monkeypatch):
+    reply = "Choose DuckDB when memory is limited\nChoose pandas when compute time adds up"
+    text, source = run_with_reply(tmp_path, monkeypatch, reply)
+    assert "fallback" in source
+
+
+def test_model_reply_in_wrong_format_is_rejected(tmp_path, monkeypatch):
+    reply = "When to choose DuckDB is when memory is limited, and pandas is for compute time."
+    text, source = run_with_reply(tmp_path, monkeypatch, reply)
+    assert "fallback" in source
+
+
 def test_unreachable_ollama_falls_back(tmp_path):
     provider = OllamaProvider(url="http://127.0.0.1:9", timeout=2)
     text, source = get_summary(make_stats(tmp_path), provider)
