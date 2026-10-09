@@ -22,7 +22,7 @@ The job reads order data, removes bad rows, and builds a daily table with the nu
 
 **Metrics stored in a table.** Results go into a DuckDB table and a CSV file, so the AI summary and the README read the same numbers.
 
-**AI behind a small interface.** The model call is in one class, so another model can be used later. The default is a local Ollama model, which costs nothing and needs no API key. If the call fails, a rule-based summary is used so the pipeline never breaks.
+**AI behind a small interface, with checks.** The model call is in one class, so another model can be used later. The default is a local Ollama model, which costs nothing and needs no API key. In my first tests the small model got comparisons wrong (it said pandas was faster). So the code writes all the numbers, the model only fills in two short reasons, and a check rejects any reply with digits, comparison words, or the wrong pairing. If the check fails, a rule-based sentence is used, so a wrong summary is never published.
 
 ## What the results say
 

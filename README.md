@@ -100,24 +100,29 @@ Raw runs are in `docs/metrics.csv`.
 
 ## AI summary
 
-`src/ai_summary.py` reads the metrics, takes the middle value of the runs and asks a model to write a short summary. The model call is behind a small `SummaryProvider` class, so the model can be changed without touching the rest.
+`src/ai_summary.py` reads the metrics, takes the middle value of the runs, and builds a short summary.
 
-- Default provider: a local model through Ollama (no API key, no cost).
-- Settings through environment variables: `AI_MODEL` (default `llama3.2`) and `OLLAMA_URL` (default `http://localhost:11434`).
-- If Ollama is not running or the call fails, the script uses a rule-based summary written by code, so it never crashes. The output file says which one was used.
+- The numbers in the summary are written by code, because a small local model misread numbers and comparisons in my first tests.
+- The model fills in two short reasons: when to choose DuckDB and when to choose pandas. The sentence shape is fixed by the code.
+- The model's reasons are checked before use. They are rejected if they contain digits or comparison words (faster, more, less and so on), or if DuckDB is not tied to compute time and pandas to memory.
+- If the check fails, Ollama is not running, or the call fails, the script uses a rule-based sentence instead. The output file says which one was used.
+- The model call is behind a small `SummaryProvider` class, so another model can be used later.
+- Default provider: a local Ollama model (no API key, no cost). Settings through environment variables: `AI_MODEL` (default `llama3.2`) and `OLLAMA_URL` (default `http://localhost:11434`). I used `llama3.2:1b`.
+- Limit: the small model often reuses the wording of the example in the prompt, so its contribution is small.
 
 No secrets are used anywhere in this project.
 
 ## Tests
 
-12 tests in `tests/`:
+21 tests in `tests/`:
 
 - duplicates are removed (both versions)
 - bad rows are rejected (both versions)
 - pandas and DuckDB give the same result
 - running the pipeline twice gives the same result
 - edge case: every row is invalid, so the output is empty
-- failure case: the AI provider crashes or is unreachable, so the fallback summary is used
+- failure cases: the AI provider crashes or is unreachable, so the fallback summary is used
+- AI text is accepted only when it is correct, and rejected when it has numbers, comparison words, swapped advice, or the wrong format
 
 ## Assumptions and limits
 
