@@ -134,5 +134,4 @@ No secrets are used anywhere in this project.
 
 ## Links
 
-- Demo video: <add link>
 - Design note: `docs/design_note.md`
